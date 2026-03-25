@@ -1,27 +1,27 @@
 import speech_recognition as sr
 from transformers import pipeline
 import time
+import pyttsx3  
 
 class ViAssistant:
     def __init__(self):
         print("Initializing Vi's neural pathways...")
         
-        # 1. Load Specialized Hugging Face Models
-        # NOTE: We use smaller models here to prevent RAM/VRAM exhaustion
+        # Initialize TTS Engine
+        self.engine = pyttsx3.init()
+        self.configure_voice()
         
-        # Expert 1: Sentiment Analysis
+        # 1. Load Specialized Hugging Face Models
         self.sentiment_expert = pipeline(
             "sentiment-analysis", 
             model="distilbert-base-uncased-finetuned-sst-2-english"
         )
         
-        # Expert 2: Summarization
         self.summary_expert = pipeline(
             "summarization", 
             model="sshleifer/distilbart-cnn-12-6"
         )
         
-        # Expert 3: General Chat / QA
         self.chat_expert = pipeline(
             "text-generation", 
             model="distilgpt2" 
@@ -30,18 +30,29 @@ class ViAssistant:
         self.recognizer = sr.Recognizer()
         self.mic = sr.Microphone()
 
+    def configure_voice(self):
+        """Sets the voice properties for Vi."""
+        voices = self.engine.getProperty('voices')
+        # Selecting a female-sounding voice if available
+        for voice in voices:
+            if "female" in voice.name.lower() or "zira" in voice.name.lower():
+                self.engine.setProperty('voice', voice.id)
+                break
+        self.engine.setProperty('rate', 175) # Speed of speech
+
+    def speak(self, text):
+        """Vocalizes the provided text."""
+        print(f"\nVi: {text}\n")
+        self.engine.say(text)
+        self.engine.runAndWait()
+
     def listen_for_wake_word(self):
-        """
-        In a production environment, replace this with OpenWakeWord or Porcupine 
-        for offline, low-latency wake word detection.
-        """
         with self.mic as source:
             print("Listening for 'Vi'...")
             self.recognizer.adjust_for_ambient_noise(source)
             audio = self.recognizer.listen(source)
             
         try:
-            # Using Google's free tier STT for quick prototyping
             transcript = self.recognizer.recognize_google(audio).lower()
             if "vi" in transcript or "vee" in transcript:
                 return True
@@ -59,18 +70,14 @@ class ViAssistant:
             print(f"You said: {command}")
             return command
         except sr.UnknownValueError:
-            print("Vi didn't catch that.")
+            self.speak("Vi didn't catch that.")
             return None
 
     def route_to_expert(self, command):
-        """
-        The Router: Determines which model handles the request.
-        """
         command_lower = command.lower()
         
         if "summarize" in command_lower:
             print("Routing to Summarization Expert...")
-            # In reality, you'd extract the text to summarize here
             text_to_summarize = command.replace("summarize", "")
             result = self.summary_expert(text_to_summarize, max_length=50, min_length=10, do_sample=False)
             return result[0]['summary_text']
@@ -78,7 +85,8 @@ class ViAssistant:
         elif "how does this sound" in command_lower or "sentiment" in command_lower:
             print("Routing to Sentiment Expert...")
             result = self.sentiment_expert(command)
-            return f"This sounds {result[0]['label']} (Confidence: {result[0]['score']:.2f})"
+            label = result[0]['label']
+            return f"This sounds {label}." # Shortened for better vocalization
             
         else:
             print("Routing to General Chat Expert...")
@@ -86,22 +94,15 @@ class ViAssistant:
             return result[0]['generated_text']
 
     def run(self):
-        print("Vi System Online.")
+        self.speak("Vi System Online.")
         while True:
-            # 1. Block and wait for wake word
             if self.listen_for_wake_word():
-                
-                # 2. Capture the actual instruction
                 command = self.capture_command()
-                
                 if command:
-                    # 3. Route and execute
                     response = self.route_to_expert(command)
-                    print(f"\nVi: {response}\n")
-                    
+                    self.speak(response)
             time.sleep(0.5)
 
 if __name__ == "__main__":
-    # Ensure you pip install SpeechRecognition pyaudio transformers torch
     vi = ViAssistant()
     vi.run()
